@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<style>
+#canvas {
+    display: block;
+    border: 1px solid #aaa;
+}
+#progress {
+    display: block;
+}
+</style>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const round = Math.round;
+        function main() {
+
+            const image_width = 256;
+            const image_height = 256;
+
+            const canvas = document.getElementById('canvas');
+            const progress = document.getElementById('progress');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image_width;
+            canvas.height = image_height;
+            
+            for (let j = image_height-1; j >= 0; j--) {
+                for (let i = 0; i < image_width; i++) {
+                    const r = i / (image_width - 1);
+                    const g = (image_height-j) / (image_height - 1);
+                    const b = 0.25;
+
+                    const ir = round(255.999 * r);
+                    const ig = round(255.999 * g);
+                    const ib = round(255.999 * b);
+
+                    ctx.fillStyle = `rgb(${ir}, ${ig}, ${ib})`;
+                    ctx.fillRect(i, j, 1, 1);
+                }
+            }
+        }
+
+        main();
+    </script>
+</body>
+</html>
