@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<style>
+#canvas {
+    border: 1px solid #aaa;
+}
+</style>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+
+        const round = Math.round;
+        const sqrt = Math.sqrt;
+
+        function main() {
+
+            const image_width = 256;
+            const image_height = 256;
+
+            const canvas = document.getElementById('canvas');
+            const progress = document.getElementById('progress');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image_width;
+            canvas.height = image_height;
+            
+            for (let j = image_height-1; j >= 0; j--) {
+                for (let i = 0; i < image_width; i++) {
+                    const pixel_color = color(i / (image_width - 1), (image_height-j) / (image_height - 1), 0.25);
+                    write_color(ctx, pixel_color, i, j);
+                }
+            }
+        }
+
+        class Vec3 {
+            static createVec3(x=0, y=0, z=0) {
+                return new Vec3(x, y, z);
+            }
+
+            constructor(x=0, y=0, z=0) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+
+            copy(v) {
+                const { x, y, z } = v;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                return this;
+            }
+
+            add(v) {
+                const { x, y, z } = v;
+                this.x += x;
+                this.y += y;
+                this.z += z;
+                return this;
+            }
+
+            sub(v) {
+                const { x, y, z } = v;
+                this.x -= x;
+                this.y -= y;
+                this.z -= z;
+                return this;
+            }
+
+            mulT(t) {
+                this.x *= t;
+                this.y *= t;
+                this.z *= t;
+                return this;
+            }
+
+            divT(t) {
+                if (t !== 0) {
+                    this.x /= t;
+                    this.y /= t;
+                    this.z /= t;
+                }
+                return this;
+            }
+
+            length_squared() {
+                const { x, y, z } = this;
+                return x*x + y*y + z*z;
+            }
+
+            length() {
+                return sqrt(this.length_squared());
+            }
+
+            negate() {
+                return this.mulT(-1);
+            }
+
+            clone() {
+                const { x, y, z } = this;
+                return new Vec3(x, y, z);
+            }
+        }
+
+        const vec3 = Vec3.createVec3;
+        const color = vec3;
+        const point3 = vec3;
+
+        function add(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0+v0, u1+v1, u2+v2);
+        }
+
+        function sub(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0-v0, u1-v1, u2-v2);
+        }
+
+        function mul(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0*v0, u1*v1, u2*v2);
+        }
+
+        function mulT(u, t) {
+            const { x:u0, y:u1, z:u2 } = u;
+            return vec3(t*u0, t*u1, t*u2);
+        }
+
+        function divT(u, t) {
+            const { x:u0, y:u1, z:u2 } = u;
+            return vec3(u0/t, u1/t, u2/t);           
+        }
+
+        function dot(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return u0*v0 + u1*v1 + u2*v2;
+        }
+
+        function cross(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(
+                u1*v2 - u2*v1,
+                u2*v0 - u0*v2,
+                u0*v1 - u1*v0,
+            )
+        }
+
+        function unit_vector(v) {
+            return v.clone().divT(v.length());
+        }
+
+        function write_color(ctx, pixel_color, x, y) {
+            const { x:r, y:g, z:b } = pixel_color;
+            const ir = round(255.999 * r);
+            const ig = round(255.999 * g);
+            const ib = round(255.999 * b)
+            ctx.fillStyle = `rgb(${ir}, ${ig}, ${ib})`;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+
+        main();
+    </script>
+</body>
+</html>
