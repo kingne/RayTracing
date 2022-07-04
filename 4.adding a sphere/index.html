@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<style>
+#canvas {
+    border: 1px solid #aaa;
+}
+</style>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+
+        const round = Math.round;
+        const sqrt = Math.sqrt;
+
+        function main() {
+            // Image
+            const aspect_ratio = 16.0 / 9.0;
+            const image_width = 400;
+            const image_height = round(image_width / aspect_ratio);
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image_width;
+            canvas.height = image_height;
+
+            // Camera
+            const viewport_height = 2;
+            const viewport_width = aspect_ratio * viewport_height;
+            const focal_length = 1.0;
+
+            const origin = point3(0, 0, 0);
+            const horizontal = vec3(viewport_width, 0, 0);
+            const vertical = vec3(0, viewport_height, 0);
+            const lower_left_corner = origin.clone().sub(divT(horizontal, 2)).sub(divT(vertical, 2)).sub(vec3(0, 0, focal_length));
+            
+            for (let j = image_height-1; j >= 0; j--) {
+                for (let i = 0; i < image_width; i++) {
+                    const u = i / (image_width - 1);
+                    const v = (image_height - j) / (image_height - 1);
+                    const r = ray(origin, lower_left_corner.clone().add(mulT(horizontal, u)).add(mulT(vertical, v)).sub(origin))
+                    const pixel_color = ray_color(r);
+                    write_color(ctx, pixel_color, i, j);
+                }
+            }
+        }
+
+        class Vec3 {
+            static createVec3(x=0, y=0, z=0) {
+                return new Vec3(x, y, z);
+            }
+
+            constructor(x=0, y=0, z=0) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+
+            copy(v) {
+                const { x, y, z } = v;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                return this;
+            }
+
+            add(v) {
+                const { x, y, z } = v;
+                this.x += x;
+                this.y += y;
+                this.z += z;
+                return this;
+            }
+
+            sub(v) {
+                const { x, y, z } = v;
+                this.x -= x;
+                this.y -= y;
+                this.z -= z;
+                return this;
+            }
+
+            mulT(t) {
+                this.x *= t;
+                this.y *= t;
+                this.z *= t;
+                return this;
+            }
+
+            divT(t) {
+                if (t !== 0) {
+                    this.x /= t;
+                    this.y /= t;
+                    this.z /= t;
+                }
+                return this;
+            }
+
+            length_squared() {
+                const { x, y, z } = this;
+                return x*x + y*y + z*z;
+            }
+
+            length() {
+                return sqrt(this.length_squared());
+            }
+
+            negate() {
+                return this.mulT(-1);
+            }
+
+            clone() {
+                const { x, y, z } = this;
+                return new Vec3(x, y, z);
+            }
+        }
+
+        const vec3 = Vec3.createVec3;
+        const color = vec3;
+        const point3 = vec3;
+
+        function add(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0+v0, u1+v1, u2+v2);
+        }
+
+        function sub(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0-v0, u1-v1, u2-v2);
+        }
+
+        function mul(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0*v0, u1*v1, u2*v2);
+        }
+
+        function mulT(u, t) {
+            const { x:u0, y:u1, z:u2 } = u;
+            return vec3(t*u0, t*u1, t*u2);
+        }
+
+        function divT(u, t) {
+            const { x:u0, y:u1, z:u2 } = u;
+            return vec3(u0/t, u1/t, u2/t);           
+        }
+
+        function dot(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return u0*v0 + u1*v1 + u2*v2;
+        }
+
+        function cross(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(
+                u1*v2 - u2*v1,
+                u2*v0 - u0*v2,
+                u0*v1 - u1*v0,
+            )
+        }
+
+        function unit_vector(v) {
+            return v.clone().divT(v.length());
+        }
+
+        function write_color(ctx, pixel_color, x, y) {
+            const { x:r, y:g, z:b } = pixel_color;
+            const ir = round(255.999 * r);
+            const ig = round(255.999 * g);
+            const ib = round(255.999 * b)
+            ctx.fillStyle = `rgb(${ir}, ${ig}, ${ib})`;
+            ctx.fillRect(x, y, 1, 1);
+        }
+
+        class Ray {
+
+            static createRay(origin, direction) {
+                return new Ray(origin, direction);
+            }
+
+            constructor(origin, direction) {
+                this.origin = origin || point3();
+                this.direction = direction || vec3();
+            }
+
+            at(t) {
+                const { origin, direction } = this;
+                return add(origin, direction.clone().mulT(t));
+            }
+        }
+
+        const ray = Ray.createRay;
+
+        function ray_color(r) {
+            if (hit_sphere(point3(0, 0, 1), 0.5, r)) {
+                return color(1, 0, 0);
+            }
+            const unit_direction = unit_vector(r.direction);
+            const t = 0.5 * (unit_direction.y + 1.0);
+            return add(color(1.0, 1.0, 1.0).mulT(1 - t), color(0.5, 0.7, 1.0).mulT(t));
+        }
+
+        function hit_sphere(center, radius, r) {
+            const oc = sub(r.origin, center);
+            const a = dot(r.direction, r.direction);
+            const b = 2.0 * dot(oc, r.direction);
+            const c = dot(oc, oc) - radius*radius;
+            const discriminant = b*b - 4*a*c;
+            return (discriminant > 0);
+        }
+
+
+        main();
+    </script>
+</body>
+</html>
