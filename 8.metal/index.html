@@ -37,8 +37,8 @@
 
             const material_ground = new Lambertian(color(0.8, 0.8, 0.0))
             const material_center = new Lambertian(color(0.7, 0.3, 0.3))
-            const material_left = new Metal(color(0.8, 0.8, 0.8))
-            const material_right = new Metal(color(0.8, 0.6, 0.2))
+            const material_left = new Metal(color(0.8, 0.8, 0.8), 0.3)
+            const material_right = new Metal(color(0.8, 0.6, 0.2), 1.0)
 
             const world = new Hittable_list();
             world.add(shpere(point3(0, -100.5, -1), 100, material_ground));
@@ -440,14 +440,15 @@
         }
 
         class Metal extends Material {
-            constructor(a) {
+            constructor(a, f) {
                 super();
                 this.albedo = a;
+                this.fuzz = f < 1 ? f : 1;
             }
 
             scatter(r_in, rec, attenuation, scattered) {
                 const reflected = reflect(unit_vector(r_in.direction), rec.normal);
-                scattered.copy(ray(rec.p, reflected));
+                scattered.copy(ray(rec.p, add(reflected, random_in_unit_sphere().mulT(this.fuzz))));
                 attenuation.copy(this.albedo);
                 return (dot(scattered.direction, rec.normal) > 0);
             }    
