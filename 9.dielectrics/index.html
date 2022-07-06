@@ -14,7 +14,7 @@
 <body>
     <canvas id="canvas"></canvas>
     <script>
-
+        const renderStack = [];
         const round = Math.round;
         const sqrt = Math.sqrt;
         const PI = Math.PI;
@@ -63,7 +63,7 @@
                         const r = cam.get_ray(u, v);
                         pixel_color.add(ray_color(r, world, max_depth));
                     }
-                    requestAnimationFrame(() => write_color(ctx, pixel_color, i, j, samples_per_pixel))
+                    write_color(ctx, pixel_color, i, j, samples_per_pixel)
                 }
             }
         }
@@ -253,8 +253,11 @@
             const ir = round(256 * clamp(r, 0, 0.999));
             const ig = round(256 * clamp(g, 0, 0.999));
             const ib = round(256 * clamp(b, 0, 0.999))
-            ctx.fillStyle = `rgb(${ir}, ${ig}, ${ib})`;
-            ctx.fillRect(x, y, 1, 1);
+            const drawFunc = () => {
+                ctx.fillStyle = `rgb(${ir}, ${ig}, ${ib})`;
+                ctx.fillRect(x, y, 1, 1);
+            }
+            renderStack.push(drawFunc);
         }
 
         class Ray {
@@ -502,7 +505,19 @@
             }
         }
 
+        function update() {
+            const prev = Date.now();
+            if (renderStack.length) {
+                // 修改间隔时长可以加快绘制，但会有卡顿
+                while(Date.now() - prev < 16.6 && renderStack.length) {
+                    renderStack.shift()();
+                }
+            }
 
+            requestAnimationFrame(update);
+        }
+
+        requestAnimationFrame(update);
 
         main();
     </script>
