@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<style>
+#canvas {
+    border: 1px solid #aaa;
+}
+</style>
+<body>
+    <canvas id="canvas"></canvas>
+    <button id="button">restart</button>
+    <script>
+        const renderStack = [];
+        const round = Math.round;
+        const sqrt = Math.sqrt;
+        const PI = Math.PI;
+        const random = Math.random;
+        const abs = Math.abs;
+        const min = Math.min;
+        const max = Math.max;
+        const sin = Math.sin;
+        const cos = Math.cos;
+        const tan = Math.tan;
+        const pow = Math.pow;
+        const degrees_to_radians = (degrees) => degrees * PI / 180.0;
+        const random_double = (min, max) => min + (max-min)*random();
+        const R = cos(PI / 4);
+
+        function main() {
+            // Image
+            const aspect_ratio = 3.0 / 2.0;
+            const image_width = 1200;
+            const image_height = round(image_width / aspect_ratio);
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image_width;
+            canvas.height = image_height;
+            const samples_per_pixel = 500;
+            const max_depth = 50;
+
+            const world = random_scene();
+
+            const lookfrom = point3(13, 2, 3);
+            const lookat = point3(0, 0, 0);
+            const vup = vec3(0, 1, 0);
+            const dist_to_focus = 10.0;
+            const aperture = 0.1;
+
+            const cam = new Camera(lookfrom, lookat, vup, 20, aspect_ratio, aperture, dist_to_focus);
+            
+            for (let j = image_height-1; j >= 0; j--) {
+                for (let i = 0; i < image_width; i++) {
+                    let pixel_color = color(0, 0, 0);
+                    for (let s = 0; s < samples_per_pixel; s++) {
+                        const u = (i + random()) / (image_width - 1);
+                        const v = (image_height - j - random()) / (image_height - 1);
+                        const r = cam.get_ray(u, v);
+                        pixel_color.add(ray_color(r, world, max_depth));
+                    }
+                    write_color(ctx, pixel_color, i, j, samples_per_pixel)
+                }
+            }
+        }
+
+        class Vec3 {
+            static createVec3(x=0, y=0, z=0) {
+                return new Vec3(x, y, z);
+            }
+
+            static random() {
+                return vec3(random(), random(), random());
+            }
+
+            static random_double(min, max) {
+                return vec3(random_double(min, max), random_double(min, max), random_double(min, max));
+            }
+
+            constructor(x=0, y=0, z=0) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+
+            copy(v) {
+                const { x, y, z } = v;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                return this;
+            }
+
+            add(v) {
+                const { x, y, z } = v;
+                this.x += x;
+                this.y += y;
+                this.z += z;
+                return this;
+            }
+
+            sub(v) {
+                const { x, y, z } = v;
+                this.x -= x;
+                this.y -= y;
+                this.z -= z;
+                return this;
+            }
+
+            mulT(t) {
+                this.x *= t;
+                this.y *= t;
+                this.z *= t;
+                return this;
+            }
+
+            divT(t) {
+                if (t !== 0) {
+                    this.x /= t;
+                    this.y /= t;
+                    this.z /= t;
+                }
+                return this;
+            }
+
+            length_squared() {
+                const { x, y, z } = this;
+                return x*x + y*y + z*z;
+            }
+
+            length() {
+                return sqrt(this.length_squared());
+            }
+
+            negate() {
+                return this.mulT(-1);
+            }
+
+            clone() {
+                const { x, y, z } = this;
+                return new Vec3(x, y, z);
+            }
+
+            near_zero() {
+                const s = 1e-8;
+                const { x, y, z } = this;
+                return (abs(x) < s) && (abs(y) < s) && (abs(z) < s);
+            }
+        }
+
+        const vec3 = Vec3.createVec3;
+        const color = vec3;
+        const point3 = vec3;
+
+        function add(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0+v0, u1+v1, u2+v2);
+        }
+
+        function addT(u, t) {
+            const { x, y, z } = this;
+            return vec3(x+t, y+t, z+t);
+        }
+
+        function sub(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0-v0, u1-v1, u2-v2);
+        }
+
+        function mul(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(u0*v0, u1*v1, u2*v2);
+        }
+
+        function mulT(u, t) {
+            const { x:u0, y:u1, z:u2 } = u;
+            return vec3(t*u0, t*u1, t*u2);
+        }
+
+        function divT(u, t) {
+            const { x:u0, y:u1, z:u2 } = u;
+            return vec3(u0/t, u1/t, u2/t);           
+        }
+
+        function dot(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return u0*v0 + u1*v1 + u2*v2;
+        }
+
+        function cross(u, v) {
+            const { x:u0, y:u1, z:u2 } = u;
+            const { x:v0, y:v1, z:v2 } = v;
+            return vec3(
+                u1*v2 - u2*v1,
+                u2*v0 - u0*v2,
+                u0*v1 - u1*v0,
+            )
+        }
+
+        function reflect(v, n) {
+            return sub(v, n.clone().mulT(2 * dot(v, n)))
+        }
+
+        function refract(uv, n, etai_over_etat) {
+            const cos_theta = min(dot(mulT(uv, -1), n), 1.0);
+            const r_out_perp = add(uv, mulT(n, cos_theta)).mulT(etai_over_etat);
+            const r_out_parallel = mulT(n, -sqrt(abs(1.0 - r_out_perp.length_squared())));
+            return add(r_out_perp, r_out_parallel);
+        }
+
+        function unit_vector(v) {
+            return v.clone().divT(v.length());
+        }
+
+        function random_in_unit_sphere() {
+            while(true) {
+                const p = Vec3.random_double(-1, 1);
+                if (p.length_squared() >= 1) continue;
+                return p;
+            }
+        }
+
+        function random_unit_vector() {
+            return unit_vector(random_in_unit_sphere());
+        }
+
+        function random_in_hemisphere(normal) {
+            const in_unit_sphere = random_in_unit_sphere();
+            if (dot(in_unit_sphere, normal) > 0) {
+                return in_unit_sphere.mulT(1);
+            } else {
+                return in_unit_sphere.mulT(-1);
+            }
+        }
+
+        function random_in_unit_disk() {
+            while(true) {
+                const p = vec3(random_double(-1, 1), random_double(-1, 1), 0);
+                if (p.length_squared() >= 1) continue;
+                return p;
+            }
+        }
+
+        function write_color(ctx, pixel_color, x, y, samples_per_pixel) {
+            let { x:r, y:g, z:b } = pixel_color;
+
+            const scale = 1 / samples_per_pixel;
+
+            r = sqrt(scale * r);
+            g = sqrt(scale * g);
+            b = sqrt(scale * b);
+
+            const ir = round(256 * clamp(r, 0, 0.999));
+            const ig = round(256 * clamp(g, 0, 0.999));
+            const ib = round(256 * clamp(b, 0, 0.999))
+            const drawFunc = () => {
+                ctx.fillStyle = `rgb(${ir}, ${ig}, ${ib})`;
+                ctx.fillRect(x, y, 1, 1);
+            }
+            renderStack.push(drawFunc);
+        }
+
+        class Ray {
+
+            static createRay(origin, direction) {
+                return new Ray(origin, direction);
+            }
+
+            constructor(origin, direction) {
+                this.origin = origin || point3();
+                this.direction = direction || vec3();
+            }
+
+            at(t) {
+                const { origin, direction } = this;
+                return add(origin, direction.clone().mulT(t));
+            }
+
+            copy(r) {
+                this.origin.copy(r.origin);
+                this.direction.copy(r.direction);
+                return this;
+            }
+        }
+
+        const ray = Ray.createRay;
+
+        function ray_color(r, world, depth) {
+            if (depth <= 0) {
+                return color(0, 0, 0);
+            }
+            const rec = Object.assign({}, hit_record);
+            if (world.hit(r, 0.001, Infinity, rec)) {
+                const scattered = ray(vec3(), vec3());
+                const attenuation = vec3();
+                if (rec.mat_ptr.scatter(r, rec, attenuation, scattered)) {
+                    return mul(attenuation, ray_color(scattered, world, depth-1))
+                }
+                return color(0, 0, 0);
+            }
+            const unit_direction = unit_vector(r.direction);
+            const t = 0.5 * (unit_direction.y + 1.0);
+            return add(color(1.0, 1.0, 1.0).mulT(1 - t), color(0.5, 0.7, 1.0).mulT(t));
+        }
+
+        function hit_sphere(center, radius, r) {
+            const oc = sub(r.origin, center);
+            const a = r.direction.length_squared();
+            const half_b = dot(oc, r.direction);
+            const c = oc.length_squared() - radius*radius;
+            const discriminant = half_b*half_b - a*c;
+
+            if (discriminant < 0) {
+                return -1.0;
+            } else {
+                return (-half_b - sqrt(discriminant)) / a;
+            }
+        }
+
+        class Hittable {
+            hit(r, t_min, t_max, rec) {};
+        }
+
+        class Sphere extends Hittable {
+            static createSphere(cen, r, m) {
+                return new Sphere(cen, r, m);
+            }
+
+            constructor(cen, r, m) {
+                super();
+                this.center = cen;
+                this.radius = r;
+                this.mat_ptr = m;
+            }
+
+            hit(r, t_min, t_max, rec) {
+                const oc = sub(r.origin, this.center);
+                const a = r.direction.length_squared();
+                const half_b = dot(oc, r.direction);
+                const c = oc.length_squared() - this.radius*this.radius;
+
+                const discriminant = half_b*half_b - a*c;
+                if (discriminant < 0) return false;
+                const sqrtd = sqrt(discriminant);
+                let root = (-half_b - sqrtd) / a;
+                if (root < t_min || t_max < root) {
+                    root = (-half_b + sqrtd) / a;
+                    if (root < t_min || t_max < root) {
+                        // 两个交点都不在范围内
+                        return false;
+                    }
+                }
+
+                rec.t = root;
+                rec.p = r.at(rec.t);
+                const outward_normal = sub(rec.p, this.center).divT(this.radius);
+                rec.set_face_normal(r, outward_normal);
+                rec.mat_ptr = this.mat_ptr;
+                return true;
+            }
+        }
+
+        const sphere = Sphere.createSphere;
+
+        class Hittable_list extends Hittable {
+            constructor() {
+                super();
+                this.objects = [];
+            }
+
+            clear() {
+                this.objects = [];
+            }
+
+            add(object) {
+                this.objects.push(object)
+            }
+
+            hit(r, t_min, t_max, rec) {
+                const temp_rec = Object.assign({}, hit_record);
+                let hit_anything = false;
+                let closet_so_far = t_max;
+
+                for (let object of this.objects) {
+                    if (object.hit(r, t_min, closet_so_far, temp_rec)) {
+                        hit_anything = true;
+                        // clone hit_record
+                        closet_so_far = temp_rec.t;
+                        rec.copy(temp_rec);
+                    }
+                }
+                return hit_anything;
+            }
+        }
+
+        const hit_record = {
+            p: null,
+            normal: null,
+            mat_ptr:null,
+            t: 0,
+            font_face: false,
+            set_face_normal:function(r, outward_normal) {
+                this.font_face = dot(r.direction, outward_normal) < 0;
+                this.normal = this.font_face ? mulT(outward_normal, 1) : mulT(outward_normal, -1);
+            },
+
+            copy:function(rec) {
+                this.p = rec.p.clone();
+                this.normal = rec.normal.clone();
+                this.mat_ptr = rec.mat_ptr;
+                this.t = rec.t;
+                this.font_face = rec.font_face;
+            }
+        }
+
+        class Camera {
+
+            constructor(lookfrom, lookat, vup, vfov, aspect_ratio, aperture, focus_dist) {
+                const theta = degrees_to_radians(vfov);
+                const h = tan(theta / 2);
+                this.viewport_height = 2 * h;
+                this.viewport_width = aspect_ratio * this.viewport_height;
+
+                const w = unit_vector(sub(lookfrom, lookat));
+                const u = unit_vector(cross(vup, w));
+                const v = cross(w, u);
+                this.u = u;
+                this.v = v;
+                this.w = w;
+
+                this.origin = lookfrom.clone();
+                this.horizontal = mulT(u, this.viewport_width * focus_dist);
+                this.vertical = mulT(v, this.viewport_height * focus_dist);
+                this.lower_left_corner = this.origin.clone().sub(divT(this.horizontal, 2)).sub(divT(this.vertical, 2)).sub(mulT(w, focus_dist));
+                this.lens_radius = aperture / 2;
+            }
+
+            get_ray(s, t) {
+                const rd = random_in_unit_disk().mulT(this.lens_radius);
+                const offset = add(mulT(this.u, rd.x), mulT(this.v, rd.y))
+                return ray(add(this.origin, offset), this.lower_left_corner.clone().add(mulT(this.horizontal, s)).add(mulT(this.vertical, t)).sub(this.origin).sub(offset));
+            }
+
+        }
+
+        function clamp(x, min, max) {
+            if (x < min) return min;
+            if (x > max) return max;
+            return x;
+        }
+
+        class Material {
+            scatter(r_in, rec, attenuation, scattered) {};
+        }
+
+        class Lambertian extends Material {
+            constructor(a) {
+                super();
+                this.albedo = a;
+            }
+
+            scatter(r_in, rec, attenuation, scattered) {
+                const scatter_direction = add(rec.normal, random_unit_vector());
+                if (scatter_direction.near_zero()) {
+                    scatter_direction = rec.normal;
+                }
+                scattered.copy(ray(rec.p, scatter_direction));
+                attenuation.copy(this.albedo);
+                return true;
+            }
+        }
+
+        class Metal extends Material {
+            constructor(a, f) {
+                super();
+                this.albedo = a;
+                this.fuzz = f < 1 ? f : 1;
+            }
+
+            scatter(r_in, rec, attenuation, scattered) {
+                const reflected = reflect(unit_vector(r_in.direction), rec.normal);
+                scattered.copy(ray(rec.p, add(reflected, random_in_unit_sphere().mulT(this.fuzz))));
+                attenuation.copy(this.albedo);
+                return (dot(scattered.direction, rec.normal) > 0);
+            }    
+        }
+
+        class Dielectric  extends Material {
+            constructor(index_of_refraction) {
+                super();
+                this.ir = index_of_refraction;
+            }
+
+            scatter(r_in, rec, attenuation, scattered) {
+                attenuation.copy(color(1.0, 1.0, 1.0));
+                const refraction_ratio = rec.font_face ? (1 / this.ir) : this.ir;
+                const unit_direction = unit_vector(r_in.direction);
+                const cos_theta = min(dot(unit_direction.clone().negate(), rec.normal), 1.0);
+                const sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+                const cannot_refract = refraction_ratio * sin_theta > 1.0;
+                let direction;
+                if (cannot_refract || Dielectric.reflectance(cos_theta, refraction_ratio) > random()) {
+                    direction = reflect(unit_direction, rec.normal);
+                } else {
+                    direction = refract(unit_direction, rec.normal, refraction_ratio);
+                }
+                scattered.copy(ray(rec.p, direction));
+                return true;
+            }
+            
+            static reflectance(cosine, ref_idx) {
+                let r0 = (1 - ref_idx) / (1 + ref_idx);
+                r0 = r0 * r0;
+                return r0 + (1-r0)*pow((1-cosine), 5);
+            }
+        }
+
+        function update() {
+            const prev = Date.now();
+            if (renderStack.length) {
+                // 修改间隔时长可以加快绘制，但会有卡顿
+                while(Date.now() - prev < 16.6 && renderStack.length) {
+                    renderStack.shift()();
+                }
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        requestAnimationFrame(update);
+
+        main();
+
+        document.getElementById('button').onclick = function() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            main();
+        }
+
+        function random_scene() {
+            const world = new Hittable_list();
+            const ground_material = new Lambertian(color(0.5, 0.5, 0.5));
+            world.add(sphere(point3(0, -1000, 0), 1000, ground_material));
+
+            for (let a = -11; a < 11; a++) {
+                for (let b = -11; b < 11; b++) {
+                    const choose_mat = random();
+                    const center = point3(a + 0.9*random(), 0.2, b + 0.9*random());
+
+                    if (sub(center, point3(4, 0.2, 0)).length() > 0.9) {
+                        let sphere_material;
+
+                        if (choose_mat < 0.8) {
+                            const albedo = mul(color(random(), random(), random()), color(random(), random(), random()))
+                            sphere_material = new Lambertian(albedo);
+                            world.add(sphere(center, 0.2, sphere_material));
+                        } else if (choose_mat < 0.95) {
+                            const albedo = color(random_double(0.5, 1), random_double(0.5, 1), random_double(0.5, 1));
+                            const fuzz = random_double(0, 0.5);
+                            sphere_material = new Metal(albedo, fuzz);
+                            world.add(sphere(center, 0.2, sphere_material));
+                        } else {
+                            sphere_material = new Dielectric(1.5);
+                            world.add(sphere(center, 0.2, sphere_material));
+                        }
+                    }
+                }
+            }
+
+            const material1 = new Dielectric(1.5);
+            world.add(sphere(point3(0, 1, 0), 1.0, material1));
+
+            const material2 = new Lambertian(color(0.4, 0.2, 0.1));
+            world.add(sphere(point3(-4, 1, 0), 1.0, material2));
+
+            const material3 = new Metal(color(0.7, 0.6, 0.5), 0.0);
+            world.add(sphere(point3(4, 1, 0), 1.0, material3));
+
+            return world;
+        }
+        // 代码应该没问题，但是浏览器的canvas画不出来，卡在运算了
+    </script>
+</body>
+</html>
